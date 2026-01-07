@@ -9,7 +9,7 @@ import os
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 MODEL_PATH = os.path.join(
     BASE_DIR,
-    "models",
+    "model",
     "rf_handwriting_emotion.pkl"
 )
 
