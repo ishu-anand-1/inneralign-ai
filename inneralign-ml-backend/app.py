@@ -15,7 +15,14 @@ from utils.confidence_engine import confidence_message
 from utils.quality_feedback import quality_suggestions
 
 app = Flask(__name__)
-CORS(app)
+CORS(
+    app,
+    resources={r"/*": {"origins": [
+        "https://inneralign-ai.vercel.app",  # your Vercel frontend
+        "http://localhost:5173"             # local dev
+    ]}}
+)
+
 
 
 # -----------------------------------

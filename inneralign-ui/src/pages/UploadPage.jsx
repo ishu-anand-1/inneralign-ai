@@ -4,6 +4,7 @@ import Header from "../components/Header";
 import UploadCard from "../components/UploadCard";
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { analyzeHandwriting } from "../services/api";
 
 const UploadPage = () => {
   const navigate = useNavigate();
@@ -36,18 +37,27 @@ const UploadPage = () => {
   };
 
   /* ---------------- ANALYZE ---------------- */
-  const handleAnalyze = () => {
-    setAnalyzing(true);
+  const handleAnalyze = async () => {
+  if (!selectedFile) return;
 
-    setTimeout(() => {
-      navigate("/result", {
-        state: {
-          imagePreview: preview,
-          imageFile: selectedFile,
-        },
-      });
-    }, 2800); // ⏱ animation duration
-  };
+  setAnalyzing(true);
+
+  try {
+    const result = await analyzeHandwriting(selectedFile);
+
+    navigate("/result", {
+      state: {
+        imagePreview: preview,
+        analysis: result, // 🔥 REAL ML RESPONSE
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    alert("Analysis failed. Please try again.");
+    setAnalyzing(false);
+  }
+};
+
 
   return (
     <>
