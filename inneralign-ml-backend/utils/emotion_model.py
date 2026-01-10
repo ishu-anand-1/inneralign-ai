@@ -1,25 +1,97 @@
 import numpy as np
+import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import MinMaxScaler
+import joblib
 
-# Dummy training data (replace later with real dataset)
-X_train = np.array([
-    [0.2, 0.3, 0.4, 0.5, 0.2, 0.3, 0.4],  # calm
-    [0.6, 0.8, 0.1, 0.2, 0.5, 0.6, 0.7],  # stressed
-    [0.3, 0.4, 0.5, 0.6, 0.3, 0.4, 0.3],  # happy
-])
+FEATURE_COLUMNS = [
+    "Slant",
+    "Baseline",
+    "Pressure",
+    "LetterSpacing",
+    "WordSpacing",
+    "XHeight",
+    "LoopOpen",
+    "Speed",
+]
 
-y_train = ["Calm", "Stressed", "Happy"]
+MODEL_PATH = "rf_handwriting_emotion.pkl"
+SCALER_PATH = "feature_scaler.pkl"
 
-model = RandomForestClassifier(
-    n_estimators=200,
-    random_state=42
-)
 
-model.fit(X_train, y_train)
+# -------------------------------------------------
+# TRAIN MODEL (RUN ONCE)
+# -------------------------------------------------
 
-def predict_emotion(feature_vector):
-    probs = model.predict_proba([feature_vector])[0]
-    label = model.classes_[np.argmax(probs)]
-    confidence = float(np.max(probs))
+def train_model(csv_path="handwriting_features.csv"):
+    df = pd.read_csv(csv_path)
 
-    return label, confidence
+    X = df[FEATURE_COLUMNS]
+    y = df["EmotionLabel"]
+
+    scaler = MinMaxScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    model = RandomForestClassifier(
+        n_estimators=300,
+        max_depth=12,
+        class_weight="balanced",
+        random_state=42,
+    )
+
+    model.fit(X_scaled, y)
+
+    joblib.dump(model, MODEL_PATH)
+    joblib.dump(scaler, SCALER_PATH)
+
+    print("✅ Emotion model trained and saved")
+
+
+# -------------------------------------------------
+# LOAD MODEL
+# -------------------------------------------------
+
+model = joblib.load(MODEL_PATH)
+scaler = joblib.load(SCALER_PATH)
+
+
+# -------------------------------------------------
+# PREDICT EMOTION
+# -------------------------------------------------
+
+def predict_emotion(numeric_features):
+    """
+    numeric_features: list of 8 normalized values (0–1)
+    """
+
+    if len(numeric_features) != 8:
+        raise ValueError("Expected 8 handwriting features")
+
+    X = scaler.transform([numeric_features])
+
+    probabilities = model.predict_proba(X)[0]
+    classes = model.classes_
+
+    best_idx = np.argmax(probabilities)
+
+    emotion = classes[best_idx]
+    confidence = float(probabilities[best_idx])
+
+    return {
+        "emotion": emotion,
+        "confidence": round(confidence, 3),
+        "confidence_message": confidence_message(confidence),
+    }
+
+
+# -------------------------------------------------
+# CONFIDENCE MESSAGE
+# -------------------------------------------------
+
+def confidence_message(confidence):
+    if confidence >= 0.85:
+        return "High confidence — handwriting signals are very consistent."
+    elif confidence >= 0.65:
+        return "Moderate confidence — results are reliable."
+    else:
+        return "Low confidence — image quality or writing clarity may affect accuracy."
