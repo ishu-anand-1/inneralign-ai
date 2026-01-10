@@ -3,42 +3,61 @@ from flask_cors import CORS
 import numpy as np
 from PIL import Image
 import time
+import os
 
 from utils.preprocess import preprocess_image
 from utils.feature_extraction import extract_features
 from utils.emotion_inference import infer_emotion
 from utils.quality_analysis import assess_quality
 
-# NEW EXPLAINABILITY IMPORTS
 from utils.explanation_engine import explain_feature_simple
 from utils.confidence_engine import confidence_message
 from utils.quality_feedback import quality_suggestions
 
+
+# -------------------------------------------------
+# APP SETUP
+# -------------------------------------------------
 app = Flask(__name__)
+
+# Prevent very large uploads (10MB)
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+
+# ✅ PRODUCTION-SAFE CORS (Vercel + Local)
 CORS(
     app,
-    resources={r"/*": {"origins": [
-        "https://inneralign-ai.vercel.app",  # your Vercel frontend
-        "http://localhost:5173",  
-        "https://inneralign-m6q08cpt6-ishu-anand-1s-projects.vercel.app"           # local dev
-    ]}}
+    supports_credentials=True,
+    resources={
+        r"/*": {
+            "origins": [
+                "http://localhost:5173",
+                "https://inneralign-ai.vercel.app",
+                "https://*.vercel.app"
+            ],
+            "methods": ["GET", "POST", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"]
+        }
+    }
 )
 
 
-
-# -----------------------------------
+# -------------------------------------------------
 # HEALTH CHECK
-# -----------------------------------
+# -------------------------------------------------
 @app.route("/health", methods=["GET"])
 def health_check():
     return jsonify({"status": "OK"}), 200
 
 
-# -----------------------------------
+# -------------------------------------------------
 # ANALYZE HANDWRITING
-# -----------------------------------
-@app.route("/analyze", methods=["POST"])
+# -------------------------------------------------
+@app.route("/analyze", methods=["POST", "OPTIONS"])
 def analyze():
+    # Handle CORS preflight
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
+
     start_time = time.time()
 
     if "image" not in request.files:
@@ -49,7 +68,7 @@ def analyze():
         # LOAD IMAGE
         # -----------------------------
         file = request.files["image"]
-        img = Image.open(file.stream).convert("L")
+        img = Image.open(file).convert("L")
         img_np = np.array(img)
 
         # -----------------------------
@@ -67,21 +86,22 @@ def analyze():
         # -----------------------------
         features = extract_features(processed)
 
-        # ADD SIMPLE EXPLANATIONS (HUMAN READABLE)
+        # ADD SIMPLE EXPLANATIONS
         for f in features:
             f["simpleExplanation"] = explain_feature_simple(f)
 
         # -----------------------------
-        # EMOTION INFERENCE (ML MODEL)
+        # EMOTION INFERENCE
         # -----------------------------
         emotion = infer_emotion(features)
 
         # -----------------------------
-        # OVERALL CONFIDENCE CALCULATION
+        # OVERALL CONFIDENCE
         # -----------------------------
-        feature_conf_avg = sum(
-            f["confidence"] for f in features
-        ) / (len(features) * 100)
+        feature_conf_avg = (
+            sum(f["confidence"] for f in features) / (len(features) * 100)
+            if features else 0
+        )
 
         overall_conf = round(
             (
@@ -92,10 +112,7 @@ def analyze():
             1
         )
 
-        # CONFIDENCE MESSAGE
         confidence_text = confidence_message(overall_conf / 100)
-
-        # QUALITY IMPROVEMENT SUGGESTIONS
         quality_tips = quality_suggestions(quality)
 
         processing_time = int((time.time() - start_time) * 1000)
@@ -117,7 +134,7 @@ def analyze():
 
             "features": features,
             "processingTime": processing_time
-        })
+        }), 200
 
     except Exception as e:
         return jsonify({
@@ -126,10 +143,9 @@ def analyze():
         }), 500
 
 
-# -----------------------------------
+# -------------------------------------------------
 # RUN SERVER
-# -----------------------------------
+# -------------------------------------------------
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
