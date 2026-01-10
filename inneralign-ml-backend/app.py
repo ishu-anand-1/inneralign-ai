@@ -9,54 +9,35 @@ from utils.preprocess import preprocess_image
 from utils.feature_extraction import extract_features
 from utils.emotion_inference import infer_emotion
 from utils.quality_analysis import assess_quality
-
 from utils.explanation_engine import explain_feature_simple
 from utils.confidence_engine import confidence_message
 from utils.quality_feedback import quality_suggestions
 
-
-# -------------------------------------------------
-# APP SETUP
-# -------------------------------------------------
 app = Flask(__name__)
 
-# Prevent very large uploads (10MB)
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
-
-# ✅ PRODUCTION-SAFE CORS (Vercel + Local)
+# 🔥 ABSOLUTE CORS FIX (WORKS ON RENDER + VERCEL)
 CORS(
     app,
-    supports_credentials=True,
-    resources={
-        r"/*": {
-            "origins": [
-                "http://localhost:5173",
-                "https://inneralign-ai.vercel.app",
-                "https://*.vercel.app"
-            ],
-            "methods": ["GET", "POST", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"]
-        }
-    }
+    resources={r"/*": {"origins": "*"}},
+    methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"]
 )
 
-
-# -------------------------------------------------
+# -----------------------------------
 # HEALTH CHECK
-# -------------------------------------------------
+# -----------------------------------
 @app.route("/health", methods=["GET"])
 def health_check():
     return jsonify({"status": "OK"}), 200
 
 
-# -------------------------------------------------
+# -----------------------------------
 # ANALYZE HANDWRITING
-# -------------------------------------------------
+# -----------------------------------
 @app.route("/analyze", methods=["POST", "OPTIONS"])
 def analyze():
-    # Handle CORS preflight
     if request.method == "OPTIONS":
-        return jsonify({"status": "ok"}), 200
+        return jsonify({"status": "preflight ok"}), 200
 
     start_time = time.time()
 
@@ -64,44 +45,22 @@ def analyze():
         return jsonify({"error": "No image uploaded"}), 400
 
     try:
-        # -----------------------------
-        # LOAD IMAGE
-        # -----------------------------
         file = request.files["image"]
-        img = Image.open(file).convert("L")
+        img = Image.open(file.stream).convert("L")
         img_np = np.array(img)
 
-        # -----------------------------
-        # PREPROCESS IMAGE
-        # -----------------------------
         processed = preprocess_image(img_np)
-
-        # -----------------------------
-        # QUALITY ANALYSIS
-        # -----------------------------
         quality = assess_quality(processed)
-
-        # -----------------------------
-        # FEATURE EXTRACTION
-        # -----------------------------
         features = extract_features(processed)
 
-        # ADD SIMPLE EXPLANATIONS
         for f in features:
             f["simpleExplanation"] = explain_feature_simple(f)
 
-        # -----------------------------
-        # EMOTION INFERENCE
-        # -----------------------------
         emotion = infer_emotion(features)
 
-        # -----------------------------
-        # OVERALL CONFIDENCE
-        # -----------------------------
-        feature_conf_avg = (
-            sum(f["confidence"] for f in features) / (len(features) * 100)
-            if features else 0
-        )
+        feature_conf_avg = sum(
+            f["confidence"] for f in features
+        ) / (len(features) * 100)
 
         overall_conf = round(
             (
@@ -112,21 +71,15 @@ def analyze():
             1
         )
 
-        confidence_text = confidence_message(overall_conf / 100)
-        quality_tips = quality_suggestions(quality)
-
         processing_time = int((time.time() - start_time) * 1000)
 
-        # -----------------------------
-        # FINAL RESPONSE
-        # -----------------------------
         return jsonify({
             "overallConfidence": overall_conf,
-            "confidenceMessage": confidence_text,
+            "confidenceMessage": confidence_message(overall_conf / 100),
 
             "qualityScore": round(quality["score"] * 100, 1),
             "qualityIssues": quality.get("issues", []),
-            "qualitySuggestions": quality_tips,
+            "qualitySuggestions": quality_suggestions(quality),
 
             "emotion": emotion["label"],
             "emotionConfidence": round(emotion["confidence"] * 100, 1),
@@ -134,7 +87,7 @@ def analyze():
 
             "features": features,
             "processingTime": processing_time
-        }), 200
+        })
 
     except Exception as e:
         return jsonify({
@@ -143,9 +96,9 @@ def analyze():
         }), 500
 
 
-# -------------------------------------------------
+# -----------------------------------
 # RUN SERVER
-# -------------------------------------------------
+# -----------------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
