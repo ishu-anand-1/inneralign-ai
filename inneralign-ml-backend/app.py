@@ -17,8 +17,14 @@ app = Flask(__name__)
 
 # 🔥 ABSOLUTE CORS FIX (WORKS ON RENDER + VERCEL)
 CORS(
-    app,
-    resources={r"/*": {"origins": "*"}},
+     app,
+    resources={r"/*": {
+        "origins": [
+            "http://localhost:5173",
+            "https://inneralign-ai.vercel.app",
+            "https://inneralign-53kf3yprf-ishu-anand-1s-projects.vercel.app"
+        ]
+    }},
     methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"]
 )
