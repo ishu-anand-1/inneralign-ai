@@ -11,7 +11,7 @@ MODEL_PATH = os.path.join(BASE_DIR, "models", "rf_handwriting_emotion.pkl")
 if not os.path.exists(MODEL_PATH):
     raise FileNotFoundError(
         f"Emotion model not found at {MODEL_PATH}. "
-        "Ensure rf_handwriting_emotion.pkl is committed."
+        "Ensure rf_handwriting_emotion.pkl is present."
     )
 
 model = joblib.load(MODEL_PATH)
@@ -27,51 +27,54 @@ FEATURE_ORDER = [
     "Word Spacing",
     "X-Height Variation",
     "Loop Openness",
-    "Writing Speed Proxy"
+    "Writing Speed",
 ]
 
 # -----------------------------------
-# SAFE NUMERIC CONVERTER
+# HELPER: SAFE NUMERIC CONVERSION
 # -----------------------------------
-def clean_numeric(value):
-    if isinstance(value, str):
-        value = value.replace("°", "").replace("%", "").strip()
-    return float(value)
+def safe_numeric(val):
+    """
+    Converts string or numeric values to float safely.
+    Removes degree or percentage symbols.
+    """
+    if isinstance(val, str):
+        val = val.replace("°", "").replace("%", "").strip()
+    try:
+        return float(val)
+    except Exception:
+        return 0.5  # fallback neutral value
 
 # -----------------------------------
 # MAIN EMOTION INFERENCE
 # -----------------------------------
 def infer_emotion(features):
-    feature_map = {}
+    """
+    Input:
+        features: list of dicts returned by extract_features()
+    Output:
+        dict: label, confidence (0–1), reasons
+    """
 
-    for f in features:
-        name = f["name"]
-        val = clean_numeric(f["value"])
+    # Map feature names → numeric values
+    feature_map = {
+        f["name"]: safe_numeric(f.get("numeric_value", 0.5))
+        for f in features
+    }
 
-        # Normalize slant angle only
-        if name == "Slant Angle":
-            val = val / 120.0
+    # Build model input in correct order
+    X = np.array([[feature_map.get(name, 0.5) for name in FEATURE_ORDER]])
 
-        feature_map[name] = val
-
-    # Ensure all features exist (fail-safe)
-    X = np.array([[
-        feature_map.get(name, 0.5)  # neutral fallback
-        for name in FEATURE_ORDER
-    ]])
-
-    # -----------------------------------
-    # MODEL PREDICTION
-    # -----------------------------------
+    # Predict probabilities
     probs = model.predict_proba(X)[0]
-    idx = int(np.argmax(probs))
-
-    confidence = float(probs[idx])
+    best_idx = int(np.argmax(probs))
+    label = model.classes_[best_idx]
+    confidence = float(probs[best_idx])
 
     return {
-        "label": emotion_label_map(model.classes_[idx]),
-        "confidence": min(confidence, 0.95),  # 🔒 always 0–1
-        "reasons": generate_reasons(features)
+        "label": emotion_label_map(label),
+        "confidence": round(np.clip(confidence, 0, 0.95), 3),
+        "reasons": generate_reasons(features),
     }
 
 # -----------------------------------
@@ -83,47 +86,44 @@ def emotion_label_map(label):
         "Calm": "Calm / Neutral",
         "Stressed": "Stressed",
         "Anxious": "Anxious",
-        "Sad": "Sad / Low Mood"
+        "Sad": "Sad / Low Mood",
     }.get(label, "Calm / Neutral")
 
 # -----------------------------------
-# REASON GENERATOR (ETHICAL & SAFE)
+# REASON GENERATOR
 # -----------------------------------
 def generate_reasons(features):
+    """
+    Provides up to 3 professional explanations for detected emotion.
+    """
+
     reasons = []
 
     for f in features:
         name = f["name"]
-        val = clean_numeric(f["value"])
+        val = safe_numeric(f.get("numeric_value", 0.5))
 
-        if name == "Baseline Consistency" and val > 0.7:
-            reasons.append(
-                "Your writing baseline stays steady, often linked to emotional balance."
-            )
+        if name == "Baseline Consistency":
+            if val > 0.7:
+                reasons.append("A steady baseline indicates emotional stability.")
+            elif val < 0.4:
+                reasons.append("Fluctuating baseline may reflect mood variability.")
 
-        if name == "Stroke Pressure" and val > 0.7:
-            reasons.append(
-                "Firm writing pressure may reflect higher mental or emotional load."
-            )
+        if name == "Stroke Pressure":
+            if val > 0.7:
+                reasons.append("Firm pressure can reflect higher mental or emotional load.")
+            elif val < 0.3:
+                reasons.append("Light pressure may indicate sensitivity or low energy.")
 
-        if name == "Stroke Pressure" and val < 0.3:
-            reasons.append(
-                "Light pressure may suggest lower emotional energy or sensitivity."
-            )
+        if name == "Letter Spacing":
+            if val < 0.4:
+                reasons.append("Tight letter spacing may indicate internal tension or stress.")
 
-        if name == "Letter Spacing" and val < 0.4:
-            reasons.append(
-                "Tight letter spacing can sometimes indicate tension or nervousness."
-            )
+        if name == "Writing Speed":
+            if val > 0.65:
+                reasons.append("Fast writing may indicate urgency or heightened mental activity.")
+            elif val < 0.4:
+                reasons.append("Slow writing may reflect carefulness or lower energy.")
 
-        if name == "Writing Speed Proxy" and val > 0.75:
-            reasons.append(
-                "Faster writing speed may indicate internal urgency or pressure."
-            )
-
-        if name == "Writing Speed Proxy" and val < 0.4:
-            reasons.append(
-                "Slower writing speed may reflect carefulness or lower energy."
-            )
-
+    # Deduplicate and limit to top 3 reasons
     return list(dict.fromkeys(reasons))[:3]
