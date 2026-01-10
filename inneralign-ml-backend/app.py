@@ -19,7 +19,8 @@ CORS(
     app,
     resources={r"/*": {"origins": [
         "https://inneralign-ai.vercel.app",  # your Vercel frontend
-        "http://localhost:5173"             # local dev
+        "http://localhost:5173",  
+        "https://inneralign-m6q08cpt6-ishu-anand-1s-projects.vercel.app"           # local dev
     ]}}
 )
 

@@ -1,8 +1,7 @@
+import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router-dom";
 import Header from "../components/Header";
 import ProgressBar from "../components/ProgressBar";
-import { analyzeHandwriting } from "../utils/analyzeHandwriting";
 import { generatePdfReport } from "../utils/generatePdf";
 
 const tabs = [
@@ -12,35 +11,20 @@ const tabs = [
 ];
 
 const ResultPage = () => {
-  const location = useLocation();
-  const imagePreview = location.state?.imagePreview;
-  const imageFile = location.state?.imageFile;
+  const { state } = useLocation();
+  const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState(null);
+  const data = state?.analysis;
+  const imagePreview = state?.imagePreview;
+
   const [activeTab, setActiveTab] = useState("features");
 
+  // 🔐 Prevent direct access / refresh crash
   useEffect(() => {
-    if (!imageFile) return;
+    if (!data) navigate("/");
+  }, [data, navigate]);
 
-    analyzeHandwriting(imageFile)
-      .then((res) => {
-        setData(res);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [imageFile]);
-
-  if (loading) {
-    return (
-      <>
-        <Header />
-        <main className="min-h-screen flex items-center justify-center text-xl">
-          Analyzing handwriting, please wait...
-        </main>
-      </>
-    );
-  }
+  if (!data) return null;
 
   return (
     <>
@@ -49,15 +33,16 @@ const ResultPage = () => {
       <main className="bg-slate-50 min-h-screen py-10 px-6">
         <div className="max-w-7xl mx-auto space-y-10">
 
-          {/* SUMMARY */}
+          {/* ================= SUMMARY ================= */}
           <section className="bg-white p-8 rounded-2xl shadow">
-            <div className="flex flex-col md:flex-row justify-between gap-4">
+            <div className="flex flex-col md:flex-row justify-between gap-6">
+
               <div>
                 <h2 className="text-3xl font-bold text-indigo-600">
                   Analysis Complete!
                 </h2>
 
-                <p className="text-gray-500">
+                <p className="text-gray-500 mt-1">
                   Processing time: {data.processingTime} ms
                 </p>
 
@@ -68,7 +53,6 @@ const ResultPage = () => {
                   </span>
                 </p>
 
-                {/* CONFIDENCE MESSAGE */}
                 <p className="text-sm text-indigo-600 mt-2">
                   {data.confidenceMessage}
                 </p>
@@ -78,14 +62,14 @@ const ResultPage = () => {
                 onClick={() =>
                   generatePdfReport({ ...data, imagePreview })
                 }
-                className="px-5 py-3 bg-black text-white rounded-xl hover:bg-gray-800"
+                className="h-fit px-5 py-3 bg-black text-white rounded-xl hover:bg-gray-800"
               >
                 ⬇ Download PDF Report
               </button>
             </div>
           </section>
 
-          {/* EMOTION */}
+          {/* ================= EMOTION ================= */}
           <section className="bg-green-500 text-white p-10 rounded-2xl shadow">
             <h3 className="text-xl font-semibold">
               Emotional State Detected
@@ -108,7 +92,7 @@ const ResultPage = () => {
             </ul>
           </section>
 
-          {/* TABBED CARD */}
+          {/* ================= TABS ================= */}
           <section className="bg-white p-8 rounded-2xl shadow">
 
             {/* TAB BUTTONS */}
@@ -129,9 +113,7 @@ const ResultPage = () => {
               ))}
             </div>
 
-            {/* ---------------- TAB CONTENT ---------------- */}
-
-            {/* DETAILED FEATURES */}
+            {/* ================= FEATURES TAB ================= */}
             {activeTab === "features" && (
               <div className="space-y-10">
 
@@ -154,10 +136,10 @@ const ResultPage = () => {
 
                 {/* FEATURE TABLE */}
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left">
+                  <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b">
-                        <th className="py-2">Feature</th>
+                        <th className="py-3">Feature</th>
                         <th>Value</th>
                         <th>Interpretation</th>
                         <th>Confidence</th>
@@ -167,7 +149,9 @@ const ResultPage = () => {
                     <tbody>
                       {data.features.map((f, i) => (
                         <tr key={i} className="border-b last:border-none">
-                          <td className="py-3 font-medium">{f.name}</td>
+                          <td className="py-4 font-medium">
+                            {f.name}
+                          </td>
 
                           <td>{f.value}</td>
 
@@ -175,8 +159,6 @@ const ResultPage = () => {
                             <p className="text-sm text-gray-800">
                               {f.interpretation}
                             </p>
-
-                            {/* SIMPLE HUMAN EXPLANATION */}
                             <p className="text-sm text-gray-600 mt-1">
                               {f.simpleExplanation}
                             </p>
@@ -194,7 +176,7 @@ const ResultPage = () => {
               </div>
             )}
 
-            {/* INSIGHTS & TIPS */}
+            {/* ================= INSIGHTS TAB ================= */}
             {activeTab === "insights" && (
               <div className="space-y-8">
 
@@ -210,7 +192,6 @@ const ResultPage = () => {
                   </ul>
                 </div>
 
-                {/* QUALITY FEEDBACK */}
                 {data.qualitySuggestions?.length > 0 && (
                   <div>
                     <h3 className="text-xl font-semibold mb-4">
@@ -224,23 +205,10 @@ const ResultPage = () => {
                     </ul>
                   </div>
                 )}
-
-                <div>
-                  <h3 className="text-xl font-semibold mb-4">
-                    Understanding Your Results
-                  </h3>
-
-                  <p className="text-gray-600">
-                    This system analyzes handwriting using computer vision and
-                    machine learning. Results are probabilistic and intended
-                    for educational insight, not psychological diagnosis.
-                  </p>
-                </div>
-
               </div>
             )}
 
-            {/* YOUR HANDWRITING */}
+            {/* ================= HANDWRITING TAB ================= */}
             {activeTab === "handwriting" && (
               <div className="text-center">
                 <h3 className="text-xl font-semibold mb-6">
@@ -263,7 +231,7 @@ const ResultPage = () => {
 
           </section>
 
-          {/* DISCLAIMER */}
+          {/* ================= DISCLAIMER ================= */}
           <section className="bg-blue-50 p-6 rounded-2xl text-sm shadow">
             <strong>Ethical Disclaimer:</strong> This analysis is educational
             only and does not provide medical or psychological diagnosis.

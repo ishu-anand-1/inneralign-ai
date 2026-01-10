@@ -4,7 +4,7 @@ import Header from "../components/Header";
 import UploadCard from "../components/UploadCard";
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { analyzeHandwriting } from "../services/api";
+import { analyzeHandwriting } from "../utils/analyzeHandwriting";
 
 const UploadPage = () => {
   const navigate = useNavigate();
@@ -37,7 +37,7 @@ const UploadPage = () => {
   };
 
   /* ---------------- ANALYZE ---------------- */
-  const handleAnalyze = async () => {
+const handleAnalyze = async () => {
   if (!selectedFile) return;
 
   setAnalyzing(true);
@@ -48,15 +48,17 @@ const UploadPage = () => {
     navigate("/result", {
       state: {
         imagePreview: preview,
-        analysis: result, // 🔥 REAL ML RESPONSE
+        analysis: result, // ✅ ML response
       },
     });
+
   } catch (error) {
     console.error(error);
     alert("Analysis failed. Please try again.");
     setAnalyzing(false);
   }
 };
+
 
 
   return (

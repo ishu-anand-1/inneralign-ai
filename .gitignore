@@ -12,6 +12,7 @@ dist/
 
 # ML
 *.pkl
+!inneralign-ml-backend/models/rf_handwriting_emotion.pkl
 *.h5
 
 # OS
