@@ -8,8 +8,9 @@ import os
 from utils.preprocess import preprocess_image
 from utils.feature_extraction import extract_features
 from utils.emotion_inference import infer_emotion
-from utils.quality_analysis import assess_quality, quality_suggestions
-from utils.explanation_engine import explain_feature_simple
+from utils.quality_analysis import assess_quality
+from utils.quality_feedback import quality_suggestions
+from utils.explanation_engine import explain_feature
 from utils.confidence_engine import confidence_message
 
 app = Flask(__name__)
@@ -33,6 +34,7 @@ CORS(
 def health_check():
     return jsonify({"status": "OK"}), 200
 
+
 # ----------------- HANDWRITING ANALYSIS -----------------
 @app.route("/analyze", methods=["POST", "OPTIONS"])
 def analyze():
@@ -41,14 +43,13 @@ def analyze():
 
     start_time = time.time()
 
-    # Check if image is uploaded
     if "image" not in request.files:
         return jsonify({"error": "No image uploaded"}), 400
 
     try:
         # ----------------- LOAD IMAGE -----------------
         file = request.files["image"]
-        img = Image.open(file.stream).convert("L")  # Convert to grayscale
+        img = Image.open(file.stream).convert("L")
         img_np = np.array(img)
 
         # ----------------- PREPROCESS IMAGE -----------------
@@ -58,25 +59,55 @@ def analyze():
         quality = assess_quality(processed)
         quality_tips = quality_suggestions(quality)
 
+        # ⛔ ⛔ ⛔ BLANK IMAGE HARD STOP (WRITE HERE) ⛔ ⛔ ⛔
+        if quality.get("is_blank", False):
+            return jsonify({
+                "overallConfidence": 8.0,
+                "confidenceMessage": "No handwriting detected. Please upload a written page.",
+
+                "qualityScore": 5.0,
+                "qualityIssues": quality.get("issues", []),
+                "qualitySuggestions": quality_tips,
+
+                "emotion": "No Data",
+                "emotionConfidence": 0.0,
+                "emotionReasons": [
+                    "The uploaded image does not contain handwriting."
+                ],
+
+                "features": [],
+                "processingTime": int((time.time() - start_time) * 1000)
+            }), 200
+        # ⛔ ⛔ ⛔ END BLANK STOP ⛔ ⛔ ⛔
+
         # ----------------- EXTRACT FEATURES -----------------
         features = extract_features(processed)
         for f in features:
-            f["simpleExplanation"] = explain_feature_simple(f)
+          explanation = explain_feature(f)
+
+          f["simpleExplanation"] = explanation["description"]
+          f["analysis"] = explanation
 
         # ----------------- PREDICT EMOTION -----------------
         emotion = infer_emotion(features)
 
-        # ----------------- CALCULATE OVERALL CONFIDENCE -----------------
-        feature_conf_avg = sum(f["confidence"] for f in features) / (len(features) * 100)
+        # ----------------- OVERALL CONFIDENCE -----------------
+        feature_conf_avg = (
+            sum(f["confidence"] for f in features) / (len(features) * 100)
+            if features else 0
+        )
+
         overall_conf = round(
-            (quality["score"] * 0.25 + emotion["confidence"] * 0.45 + feature_conf_avg * 0.30) * 100,
+            (quality["score"] * 0.25 +
+             emotion["confidence"] * 0.45 +
+             feature_conf_avg * 0.30) * 100,
             1
         )
 
         processing_time = int((time.time() - start_time) * 1000)
 
-        # ----------------- RESPONSE JSON -----------------
-        response = {
+        # ----------------- RESPONSE -----------------
+        return jsonify({
             "overallConfidence": overall_conf,
             "confidenceMessage": confidence_message(overall_conf / 100),
 
@@ -90,12 +121,9 @@ def analyze():
 
             "features": features,
             "processingTime": processing_time
-        }
-
-        return jsonify(response)
+        })
 
     except Exception as e:
-        # Full traceback can be added in dev mode if needed
         return jsonify({
             "error": "Processing failed",
             "details": str(e)
@@ -104,4 +132,4 @@ def analyze():
 # ----------------- RUN SERVER -----------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port) 

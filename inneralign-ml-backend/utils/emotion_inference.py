@@ -1,24 +1,47 @@
-import numpy as np
-import joblib
 import os
+import joblib
+import numpy as np
+from functools import lru_cache
 
-# -----------------------------------
-# LOAD TRAINED MODEL
-# -----------------------------------
+# =====================================================
+# PATHS
+# =====================================================
+
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "models", "rf_handwriting_emotion.pkl")
+
+MODEL_PATH = os.path.join(
+    BASE_DIR,
+    "models",
+    "rf_handwriting_emotion.pkl"
+)
+
+SCALER_PATH = os.path.join(
+    BASE_DIR,
+    "models",
+    "feature_scaler.pkl"
+)
+
+# =====================================================
+# LOAD MODEL + SCALER
+# =====================================================
 
 if not os.path.exists(MODEL_PATH):
     raise FileNotFoundError(
-        f"Emotion model not found at {MODEL_PATH}. "
-        "Ensure rf_handwriting_emotion.pkl is present."
+        f"Model not found: {MODEL_PATH}"
+    )
+
+if not os.path.exists(SCALER_PATH):
+    raise FileNotFoundError(
+        f"Scaler not found: {SCALER_PATH}"
     )
 
 model = joblib.load(MODEL_PATH)
+scaler = joblib.load(SCALER_PATH)
 
-# -----------------------------------
-# FEATURE ORDER (MUST MATCH TRAINING)
-# -----------------------------------
+# =====================================================
+# FEATURE ORDER
+# =====================================================
+
 FEATURE_ORDER = [
     "Slant Angle",
     "Baseline Consistency",
@@ -30,100 +53,257 @@ FEATURE_ORDER = [
     "Writing Speed",
 ]
 
-# -----------------------------------
-# HELPER: SAFE NUMERIC CONVERSION
-# -----------------------------------
-def safe_numeric(val):
-    """
-    Converts string or numeric values to float safely.
-    Removes degree or percentage symbols.
-    """
-    if isinstance(val, str):
-        val = val.replace("°", "").replace("%", "").strip()
+# =====================================================
+# SAFE FLOAT
+# =====================================================
+
+def safe_numeric(value):
+
+    if isinstance(value, str):
+        value = (
+            value.replace("°", "")
+            .replace("%", "")
+            .strip()
+        )
+
     try:
-        return float(val)
+        return float(value)
+
     except Exception:
-        return 0.5  # fallback neutral value
+        return 0.5
 
-# -----------------------------------
-# MAIN EMOTION INFERENCE
-# -----------------------------------
+# =====================================================
+# CONFIDENCE MESSAGE
+# =====================================================
+
+def confidence_message(confidence):
+
+    if confidence >= 0.85:
+        return (
+            "High confidence — handwriting patterns "
+            "strongly support this prediction."
+        )
+
+    elif confidence >= 0.65:
+        return (
+            "Moderate confidence — results appear "
+            "reasonably reliable."
+        )
+
+    elif confidence >= 0.40:
+        return (
+            "Low confidence — multiple emotional "
+            "categories show similar probabilities."
+        )
+
+    return (
+        "Very low confidence — image quality or "
+        "feature extraction may affect accuracy."
+    )
+
+# =====================================================
+# CACHE PREDICTIONS
+# =====================================================
+
+@lru_cache(maxsize=500)
+def cached_predict(feature_tuple):
+
+    X = scaler.transform([list(feature_tuple)])
+
+    probabilities = model.predict_proba(X)[0]
+
+    return probabilities.tolist()
+
+# =====================================================
+# MAIN INFERENCE
+# =====================================================
+
 def infer_emotion(features):
-    """
-    Input:
-        features: list of dicts returned by extract_features()
-    Output:
-        dict: label, confidence (0–1), reasons
-    """
 
-    # Map feature names → numeric values
     feature_map = {
-        f["name"]: safe_numeric(f.get("numeric_value", 0.5))
+        f["name"]: safe_numeric(
+            f.get("numeric_value", 0.5)
+        )
         for f in features
     }
 
-    # Build model input in correct order
-    X = np.array([[feature_map.get(name, 0.5) for name in FEATURE_ORDER]])
+    ordered_features = [
+        feature_map.get(name, 0.5)
+        for name in FEATURE_ORDER
+    ]
 
-    # Predict probabilities
-    probs = model.predict_proba(X)[0]
-    best_idx = int(np.argmax(probs))
-    label = model.classes_[best_idx]
-    confidence = float(probs[best_idx])
+    probabilities = cached_predict(
+        tuple(
+            round(x, 4)
+            for x in ordered_features
+        )
+    )
+
+    classes = model.classes_
+
+    best_idx = int(np.argmax(probabilities))
+
+    emotion = classes[best_idx]
+
+    confidence = float(
+        probabilities[best_idx]
+    )
+
+    # Top 3 predictions
+    ranked = sorted(
+        zip(classes, probabilities),
+        key=lambda x: x[1],
+        reverse=True
+    )[:3]
+
+    top_predictions = [
+        {
+            "emotion":
+                emotion_label_map(label),
+            "probability":
+                round(prob, 3)
+        }
+        for label, prob in ranked
+    ]
+
+    # Feature importance
+    important_features = []
+
+    if hasattr(model, "feature_importances_"):
+
+        importance_pairs = list(
+            zip(
+                FEATURE_ORDER,
+                model.feature_importances_
+            )
+        )
+
+        importance_pairs.sort(
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+        important_features = [
+            {
+                "feature": feature,
+                "importance": round(score, 3)
+            }
+            for feature, score
+            in importance_pairs[:3]
+        ]
 
     return {
-        "label": emotion_label_map(label),
-        "confidence": round(np.clip(confidence, 0, 0.95), 3),
-        "reasons": generate_reasons(features),
+        "label":
+            emotion_label_map(emotion),
+
+        "confidence":
+            round(confidence, 3),
+
+        "confidenceMessage":
+            confidence_message(confidence),
+
+        "topPredictions":
+            top_predictions,
+
+        "importantFeatures":
+            important_features,
+
+        "reasons":
+            generate_reasons(features)
     }
 
-# -----------------------------------
+# =====================================================
 # LABEL MAP
-# -----------------------------------
+# =====================================================
+
 def emotion_label_map(label):
-    return {
+
+    mapping = {
         "Happy": "Happy / Positive",
         "Calm": "Calm / Neutral",
         "Stressed": "Stressed",
         "Anxious": "Anxious",
-        "Sad": "Sad / Low Mood",
-    }.get(label, "Calm / Neutral")
+        "Sad": "Sad / Low Mood"
+    }
 
-# -----------------------------------
+    return mapping.get(
+        label,
+        "Calm / Neutral"
+    )
+
+# =====================================================
 # REASON GENERATOR
-# -----------------------------------
+# =====================================================
+
 def generate_reasons(features):
-    """
-    Provides up to 3 professional explanations for detected emotion.
-    """
 
     reasons = []
 
-    for f in features:
-        name = f["name"]
-        val = safe_numeric(f.get("numeric_value", 0.5))
+    for feature in features:
 
-        if name == "Baseline Consistency":
-            if val > 0.7:
-                reasons.append("A steady baseline indicates emotional stability.")
-            elif val < 0.4:
-                reasons.append("Fluctuating baseline may reflect mood variability.")
+        name = feature["name"]
 
-        if name == "Stroke Pressure":
-            if val > 0.7:
-                reasons.append("Firm pressure can reflect higher mental or emotional load.")
-            elif val < 0.3:
-                reasons.append("Light pressure may indicate sensitivity or low energy.")
+        value = safe_numeric(
+            feature.get(
+                "numeric_value",
+                0.5
+            )
+        )
 
-        if name == "Letter Spacing":
-            if val < 0.4:
-                reasons.append("Tight letter spacing may indicate internal tension or stress.")
+        if (
+            name == "Baseline Consistency"
+            and value > 0.75
+        ):
+            reasons.append(
+                "A steady baseline suggests consistent writing patterns."
+            )
 
-        if name == "Writing Speed":
-            if val > 0.65:
-                reasons.append("Fast writing may indicate urgency or heightened mental activity.")
-            elif val < 0.4:
-                reasons.append("Slow writing may reflect carefulness or lower energy.")
+        elif (
+            name == "Baseline Consistency"
+            and value < 0.4
+        ):
+            reasons.append(
+                "Variations in baseline may indicate inconsistent writing flow."
+            )
 
-    # Deduplicate and limit to top 3 reasons
+        if (
+            name == "Stroke Pressure"
+            and value > 0.75
+        ):
+            reasons.append(
+                "Firm writing pressure indicates strong pen contact."
+            )
+
+        elif (
+            name == "Stroke Pressure"
+            and value < 0.30
+        ):
+            reasons.append(
+                "Light pressure indicates softer writing intensity."
+            )
+
+        if (
+            name == "Letter Spacing"
+            and value < 0.40
+        ):
+            reasons.append(
+                "Tighter letter spacing was detected."
+            )
+
+        if (
+            name == "Writing Speed"
+            and value > 0.70
+        ):
+            reasons.append(
+                "Writing appears relatively fast and fluid."
+            )
+
+        elif (
+            name == "Writing Speed"
+            and value < 0.35
+        ):
+            reasons.append(
+                "Writing speed appears slower and more deliberate."
+            )
+
     return list(dict.fromkeys(reasons))[:3]

@@ -1,80 +1,124 @@
+import os
 import pandas as pd
-import numpy as np
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    confusion_matrix,
-    classification_report
-)
 import joblib
 
-# --------------------------------
-# LOAD DATA
-# --------------------------------
-df = pd.read_csv("handwriting_features.csv")
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import MinMaxScaler
 
-feature_cols = [
-    "Slant", "Baseline", "Pressure",
-    "LetterSpacing", "WordSpacing",
-    "XHeight", "LoopOpen", "Speed"
+# =====================================================
+
+# CONFIG
+
+# =====================================================
+
+FEATURE_COLUMNS = [
+"Slant",
+"Baseline",
+"Pressure",
+"LetterSpacing",
+"WordSpacing",
+"XHeight",
+"LoopOpen",
+"Speed"
 ]
 
-X = df[feature_cols]
+MODEL_DIR = "models"
+
+MODEL_PATH = os.path.join(
+MODEL_DIR,
+"rf_handwriting_emotion.pkl"
+)
+
+SCALER_PATH = os.path.join(
+MODEL_DIR,
+"feature_scaler.pkl"
+)
+
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+# =====================================================
+
+# LOAD DATA
+
+# =====================================================
+
+df = pd.read_csv("handwriting_features.csv")
+
+print("\nDataset Shape:")
+print(df.shape)
+
+print("\nEmotion Distribution:")
+print(df["EmotionLabel"].value_counts())
+
+missing_cols = [
+col for col in FEATURE_COLUMNS
+if col not in df.columns
+]
+
+if missing_cols:
+ raise ValueError(
+f"Missing columns: {missing_cols}"
+)
+
+if "EmotionLabel" not in df.columns:
+ raise ValueError(
+"EmotionLabel column not found"
+)
+
+X = df[FEATURE_COLUMNS]
 y = df["EmotionLabel"]
 
-# --------------------------------
-# TRAIN / TEST SPLIT
-# --------------------------------
-X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
-    test_size=0.25,
-    random_state=42,
-    stratify=y
-)
 
-# --------------------------------
-# TRAIN MODEL
-# --------------------------------
+scaler = MinMaxScaler()
+
+X_scaled = scaler.fit_transform(X)
+
+
 model = RandomForestClassifier(
-    n_estimators=300,
-    max_depth=10,
-    random_state=42
+n_estimators=200,
+max_depth=8,
+class_weight="balanced",
+random_state=42,
+n_jobs=-1
 )
 
-model.fit(X_train, y_train)
+print("\nTraining model...")
 
-# --------------------------------
-# PREDICTION
-# --------------------------------
-y_pred = model.predict(X_test)
+model.fit(X_scaled, y)
 
-# --------------------------------
-# MODEL EVALUATION
-# --------------------------------
-accuracy = accuracy_score(y_test, y_pred)
-precision = precision_score(y_test, y_pred, average="weighted")
-recall = recall_score(y_test, y_pred, average="weighted")
-conf_matrix = confusion_matrix(y_test, y_pred)
+print("\nFeature Importance:")
 
-print("\n📊 MODEL EVALUATION RESULTS")
-print("----------------------------")
-print(f"Accuracy : {accuracy:.2f}")
-print(f"Precision: {precision:.2f}")
-print(f"Recall   : {recall:.2f}")
+importance_pairs = sorted(
+zip(
+FEATURE_COLUMNS,
+model.feature_importances_
+),
+key=lambda x: x[1],
+reverse=True
+)
 
-print("\nConfusion Matrix:")
-print(conf_matrix)
+for feature, score in importance_pairs:
 
-print("\nDetailed Classification Report:")
-print(classification_report(y_test, y_pred))
 
-# --------------------------------
-# SAVE MODEL
-# --------------------------------
-joblib.dump(model, "rf_handwriting_emotion.pkl")
+ print(
+    f"{feature:<15} : {score:.4f}"
+)
 
-print("\n✅ Model trained & saved successfully")
+
+joblib.dump(
+model,
+MODEL_PATH
+)
+
+joblib.dump(
+scaler,
+SCALER_PATH
+)
+
+print("\n✅ Model Saved")
+print(MODEL_PATH)
+
+print("\n✅ Scaler Saved")
+print(SCALER_PATH)
+
+print("\n🎉 Training Complete")
