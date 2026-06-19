@@ -16,19 +16,23 @@ from utils.confidence_engine import confidence_message
 app = Flask(__name__)
 
 # ----------------- CORS CONFIG -----------------
+
 CORS(
     app,
-    resources={r"/*": {
-        "origins": [
-            "http://localhost:5173",
-            "https://inneralign-ai.vercel.app",
-            "https://inneralign-53kf3yprf-ishu-anand-1s-projects.vercel.app"
-        ]
-    }},
+    resources={
+        r"/*": {
+            "origins": [
+                "http://localhost:5173",
+                "https://inneralign-ai.vercel.app",
+                "https://inneralign-53kf3yprf-ishu-anand-1s-projects.vercel.app",
+                "https://inneralign-ks7akrmyh-ishu-anand-1s-projects.vercel.app",
+            ]
+        }
+    },
     methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"]
+    allow_headers=["Content-Type", "Authorization"],
+    supports_credentials=True,
 )
-
 # ----------------- HEALTH CHECK -----------------
 @app.route("/health", methods=["GET"])
 def health_check():
@@ -78,7 +82,7 @@ def analyze():
                 "features": [],
                 "processingTime": int((time.time() - start_time) * 1000)
             }), 200
-        # ⛔ ⛔ ⛔ END BLANK STOP ⛔ ⛔ ⛔
+        
 
         # ----------------- EXTRACT FEATURES -----------------
         features = extract_features(processed)
