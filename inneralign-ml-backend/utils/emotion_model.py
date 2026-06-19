@@ -23,9 +23,6 @@ MODEL_PATH = "rf_handwriting_emotion.pkl"
 SCALER_PATH = "feature_scaler.pkl"
 
 
-# =====================================================
-# DECORATOR
-# =====================================================
 
 def measure_time(func):
     @wraps(func)
@@ -47,9 +44,6 @@ def measure_time(func):
     return wrapper
 
 
-# =====================================================
-# TRAIN MODEL
-# =====================================================
 
 def train_model(csv_path="handwriting_features.csv"):
 

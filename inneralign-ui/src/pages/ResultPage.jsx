@@ -1,8 +1,17 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+
 import Header from "../components/Header";
 import ProgressBar from "../components/ProgressBar";
 import { generatePdfReport } from "../utils/generatePdf";
+
+import {
+  Download,
+  Brain,
+  Sparkles,
+  Clock,
+  BadgeCheck,
+} from "lucide-react";
 
 const tabs = [
   { id: "features", label: "Detailed Features" },
@@ -19,9 +28,10 @@ const ResultPage = () => {
 
   const [activeTab, setActiveTab] = useState("features");
 
-  // 🔐 Prevent direct access / refresh crash
   useEffect(() => {
-    if (!data) navigate("/");
+    if (!data) {
+      navigate("/");
+    }
   }, [data, navigate]);
 
   if (!data) return null;
@@ -33,208 +43,340 @@ const ResultPage = () => {
       <main className="bg-slate-50 min-h-screen py-10 px-6">
         <div className="max-w-7xl mx-auto space-y-10">
 
-          {/* ================= SUMMARY ================= */}
-          <section className="bg-white p-8 rounded-2xl shadow">
-            <div className="flex flex-col md:flex-row justify-between gap-6">
+          {/* HERO SECTION */}
+          <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 p-10 text-white shadow-2xl">
+
+            <div className="relative z-10 flex flex-col lg:flex-row justify-between gap-8">
 
               <div>
-                <h2 className="text-3xl font-bold text-indigo-600">
-                  Analysis Complete!
-                </h2>
-
-                <p className="text-gray-500 mt-1">
-                  Processing time: {data.processingTime} ms
-                </p>
-
-                <p className="mt-3">
-                  <strong>Overall Confidence:</strong>{" "}
-                  <span className="text-indigo-600 font-bold">
-                    {data.overallConfidence}%
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles size={22} />
+                  <span className="uppercase tracking-wider text-sm">
+                    AI Analysis Report
                   </span>
-                </p>
+                </div>
 
-                <p className="text-sm text-indigo-600 mt-2">
-                  {data.confidenceMessage}
+                <h1 className="text-5xl font-bold">
+                  Analysis Complete
+                </h1>
+
+                <p className="mt-4 text-white/80 max-w-xl">
+                  Your handwriting has been analyzed using AI-powered
+                  graphology and personality assessment models.
                 </p>
               </div>
 
               <button
                 onClick={() =>
-                  generatePdfReport({ ...data, imagePreview })
+                  generatePdfReport({
+                    ...data,
+                    imagePreview,
+                  })
                 }
-                className="h-fit px-5 py-3 bg-black text-white rounded-xl hover:bg-gray-800"
+                className="bg-white text-black px-6 py-4 rounded-2xl font-semibold hover:scale-105 transition"
               >
-                ⬇ Download PDF Report
+                <Download className="inline mr-2" />
+                Download Report
               </button>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-5 mt-10">
+
+              <div className="bg-white/10 backdrop-blur-lg p-5 rounded-2xl">
+                <BadgeCheck />
+                <p className="text-sm mt-2">Confidence</p>
+
+                <h2 className="text-3xl font-bold">
+                  {data.overallConfidence}%
+                </h2>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur-lg p-5 rounded-2xl">
+                <Brain />
+                <p className="text-sm mt-2">Detected Emotion</p>
+
+                <h2 className="text-3xl font-bold">
+                  {data.emotion}
+                </h2>
+              </div>
+
+              <div className="bg-white/10 backdrop-blur-lg p-5 rounded-2xl">
+                <Clock />
+                <p className="text-sm mt-2">Processing Time</p>
+
+                <h2 className="text-3xl font-bold">
+                  {data.processingTime} ms
+                </h2>
+              </div>
+
             </div>
           </section>
 
-          {/* ================= EMOTION ================= */}
-          <section className="bg-green-500 text-white p-10 rounded-2xl shadow">
-            <h3 className="text-xl font-semibold">
-              Emotional State Detected
-            </h3>
+          {/* EMOTION SECTION */}
+          <section className="bg-white rounded-3xl shadow-xl p-8">
 
-            <h2 className="text-4xl font-bold mt-2">
-              {data.emotion}
-            </h2>
+            <div className="flex items-center gap-3 mb-6">
+              <Brain className="text-green-500" />
 
-            <p className="mt-2">
-              Confidence: <strong>{data.emotionConfidence}%</strong>
-            </p>
+              <h2 className="text-2xl font-bold">
+                Emotional Analysis
+              </h2>
+            </div>
 
-            <ProgressBar value={data.emotionConfidence} light />
+            <div className="grid lg:grid-cols-2 gap-10">
 
-            <ul className="mt-4 space-y-1 text-white/90">
-              {data.emotionReasons.map((r, i) => (
-                <li key={i}>• {r}</li>
-              ))}
-            </ul>
+              <div>
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-full font-semibold">
+                  ● {data.emotion}
+                </div>
+
+                <p className="mt-5">
+                  Confidence Score:
+
+                  <span className="font-bold text-indigo-600 ml-2">
+                    {data.emotionConfidence}%
+                  </span>
+                </p>
+
+                <div className="mt-4">
+                  <ProgressBar value={data.emotionConfidence} />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="font-semibold mb-4">
+                  Key Indicators
+                </h3>
+
+                <div className="space-y-3">
+                  {data.emotionReasons?.map((reason, i) => (
+                    <div
+                      key={i}
+                      className="bg-slate-50 border p-4 rounded-xl"
+                    >
+                      ✓ {reason}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
           </section>
 
-          {/* ================= TABS ================= */}
-          <section className="bg-white p-8 rounded-2xl shadow">
+          {/* TABS */}
+          <section className="bg-white p-8 rounded-3xl shadow-xl">
 
-            {/* TAB BUTTONS */}
             <div className="flex gap-2 mb-8 bg-slate-100 p-1 rounded-xl w-fit">
-              {tabs.map((t) => (
+              {tabs.map((tab) => (
                 <button
-                  key={t.id}
-                  onClick={() => setActiveTab(t.id)}
-                  className={`px-5 py-2 rounded-lg text-sm font-medium transition
-                    ${
-                      activeTab === t.id
-                        ? "bg-white shadow text-indigo-600"
-                        : "text-gray-500 hover:text-black"
-                    }`}
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-5 py-2 rounded-lg text-sm font-medium transition ${
+                    activeTab === tab.id
+                      ? "bg-white shadow text-indigo-600"
+                      : "text-gray-500 hover:text-black"
+                  }`}
                 >
-                  {t.label}
+                  {tab.label}
                 </button>
               ))}
             </div>
 
-            {/* ================= FEATURES TAB ================= */}
+            {/* FEATURES TAB */}
             {activeTab === "features" && (
-              <div className="space-y-10">
+              <div className="space-y-8">
 
-                {/* FEATURE BARS */}
-                <div>
-                  <h3 className="text-xl font-semibold mb-6">
-                    Handwriting Features Analysis
-                  </h3>
+                <h2 className="text-2xl font-bold">
+                  Handwriting Features Analysis
+                </h2>
 
-                  {data.features.map((f, i) => (
-                    <div key={i} className="mb-4">
-                      <div className="flex justify-between mb-1">
-                        <span>{f.name}</span>
-                        <span>{f.confidence}%</span>
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
+
+                  {data.features?.map((feature, index) => (
+                    <div
+                      key={index}
+                      className="bg-slate-50 border rounded-3xl p-6 hover:shadow-xl transition-all"
+                    >
+                      <div className="flex justify-between items-center">
+
+                        <h3 className="font-semibold text-lg">
+                          {feature.name}
+                        </h3>
+
+                        <span className="text-indigo-600 font-bold">
+                          {feature.confidence}%
+                        </span>
                       </div>
-                      <ProgressBar value={f.confidence} />
+
+                      <p className="text-indigo-600 mt-2 font-medium">
+                        {feature.value}
+                      </p>
+
+                      <div className="mt-4">
+                        <ProgressBar value={feature.confidence} />
+                      </div>
+
+                      <p className="mt-4 text-gray-700 text-sm">
+                        {feature.interpretation}
+                      </p>
+
+                      <p className="mt-2 text-gray-500 text-sm">
+                        {feature.simpleExplanation}
+                      </p>
                     </div>
                   ))}
+
                 </div>
 
-                {/* FEATURE TABLE */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="py-3">Feature</th>
-                        <th>Value</th>
-                        <th>Interpretation</th>
-                        <th>Confidence</th>
-                      </tr>
-                    </thead>
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-3xl p-8">
 
-                    <tbody>
-                      {data.features.map((f, i) => (
-                        <tr key={i} className="border-b last:border-none">
-                          <td className="py-4 font-medium">
-                            {f.name}
-                          </td>
+                  <h2 className="text-2xl font-bold">
+                    Personality Summary
+                  </h2>
 
-                          <td>{f.value}</td>
+                  <p className="mt-4 text-white/80 leading-relaxed">
+                    Based on handwriting characteristics,
+                    your writing suggests indicators of
+                    emotional balance, focus, consistency,
+                    and confidence.
 
-                          <td>
-                            <p className="text-sm text-gray-800">
-                              {f.interpretation}
-                            </p>
-                            <p className="text-sm text-gray-600 mt-1">
-                              {f.simpleExplanation}
-                            </p>
-                          </td>
+                    The dominant emotional state detected is{" "}
+                    <strong>{data.emotion}</strong>.
+                  </p>
 
-                          <td className="text-indigo-600 font-bold">
-                            {f.confidence}%
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 </div>
 
               </div>
             )}
 
-            {/* ================= INSIGHTS TAB ================= */}
+            {/* INSIGHTS TAB */}
             {activeTab === "insights" && (
               <div className="space-y-8">
 
                 <div>
-                  <h3 className="text-xl font-semibold mb-4">
-                    Key Insights
+                  <h3 className="text-2xl font-bold mb-6">
+                    AI Insights
                   </h3>
 
-                  <ul className="space-y-2">
-                    {data.emotionReasons.map((r, i) => (
-                      <li key={i}>✓ {r}</li>
+                  <div className="space-y-3">
+                    {data.emotionReasons?.map((reason, i) => (
+                      <div
+                        key={i}
+                        className="bg-slate-50 border rounded-xl p-4"
+                      >
+                        ✓ {reason}
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
 
                 {data.qualitySuggestions?.length > 0 && (
                   <div>
+
                     <h3 className="text-xl font-semibold mb-4">
                       Image Quality Suggestions
                     </h3>
 
-                    <ul className="space-y-2 text-gray-700">
-                      {data.qualitySuggestions.map((q, i) => (
-                        <li key={i}>📝 {q}</li>
+                    <div className="space-y-3">
+                      {data.qualitySuggestions.map((item, i) => (
+                        <div
+                          key={i}
+                          className="bg-yellow-50 border border-yellow-200 rounded-xl p-4"
+                        >
+                          📝 {item}
+                        </div>
                       ))}
-                    </ul>
+                    </div>
+
                   </div>
                 )}
+
               </div>
             )}
 
-            {/* ================= HANDWRITING TAB ================= */}
+            {/* HANDWRITING TAB */}
             {activeTab === "handwriting" && (
-              <div className="text-center">
-                <h3 className="text-xl font-semibold mb-6">
-                  Your Handwriting Sample
-                </h3>
+              <div className="grid lg:grid-cols-2 gap-10 items-center">
 
-                {imagePreview ? (
+                <div>
                   <img
                     src={imagePreview}
-                    alt="Uploaded handwriting"
-                    className="mx-auto max-h-[450px] rounded-xl border"
+                    alt="Handwriting"
+                    className="w-full rounded-3xl shadow-xl border"
                   />
-                ) : (
-                  <p className="text-gray-500">
-                    No handwriting image available.
-                  </p>
-                )}
+                </div>
+
+                <div>
+
+                  <h2 className="text-2xl font-bold mb-6">
+                    AI Inspection Areas
+                  </h2>
+
+                  <div className="space-y-4">
+
+                    <div className="bg-slate-50 p-4 rounded-xl">
+                      ✓ Letter Size Analysis
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-xl">
+                      ✓ Baseline Detection
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-xl">
+                      ✓ Pressure Pattern
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-xl">
+                      ✓ Slant Recognition
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-xl">
+                      ✓ Spacing Consistency
+                    </div>
+
+                  </div>
+
+                </div>
+
               </div>
             )}
 
           </section>
 
-          {/* ================= DISCLAIMER ================= */}
+          {/* ACTION BUTTONS */}
+          <section className="flex flex-wrap justify-center gap-4">
+
+            <button
+              onClick={() => navigate("/")}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700"
+            >
+              Analyze New Sample
+            </button>
+
+            <button
+              onClick={() =>
+                generatePdfReport({
+                  ...data,
+                  imagePreview,
+                })
+              }
+              className="px-6 py-3 border rounded-xl hover:bg-slate-100"
+            >
+              Download Report
+            </button>
+
+          </section>
+
+          {/* DISCLAIMER */}
           <section className="bg-blue-50 p-6 rounded-2xl text-sm shadow">
-            <strong>Ethical Disclaimer:</strong> This analysis is educational
-            only and does not provide medical or psychological diagnosis.
+
+            <strong>Ethical Disclaimer:</strong>
+
+            <p className="mt-2">
+              This analysis is educational only and does not
+              provide medical or psychological diagnosis.
+            </p>
+
           </section>
 
         </div>
